@@ -15,6 +15,7 @@ DUMP="--no-addresses -Mintel"
 
 %assign GREEN	0		; green leaf on top?
 %assign SMALL	0
+%assign NOSEG	1		; don't crash with segfault
 
 
 %if SMALL
@@ -79,12 +80,27 @@ set	ecx, sc_arg2			; nop
 
 %if SMALL
 	rep	stosd
+%elif NOSEG
+	set	ecx, 4096000/4
+	.loop:
+		dec	eax
+		stosd
+	loop	.loop
+
+	taint	eax
+	%if 1
+		sync
+		jmp	$
+	%else
+		;pause
+		jmp	$
+	%endif
 %else
-.loop:
-	dec	eax
-	;rdtsc
-	stosd
-jmp	.loop
+	.loop:
+		dec	eax
+		;rdtsc
+		stosd
+	jmp	.loop
 %endif
 
 %include "regdump2.mac"
