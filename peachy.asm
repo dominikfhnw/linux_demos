@@ -1,15 +1,25 @@
 %if 0
 # polyglot shellscript/nasm file. Just run it as a shellscript to assemble
+#
+# To add framebuffer permissions for current user:
 # sudo usermod -a -G video $(whoami)
+# And then log out and in again
+#
 DUMP="--no-addresses -Mintel"
 . ./asmlib2/build.sh
 %endif
 
 %ifndef EXTOPEN
-%define EXTOPEN 1		; open via shell? (./foo 0<>/dev/fb0)
+%assign EXTOPEN 0		; open via shell? (./foo <>/dev/fb0)
 %endif
 
-%define GREEN	0		; green leaf on top?
+%assign GREEN	0		; green leaf on top?
+%assign SMALL	0
+
+
+%if SMALL
+	%assign GREEN 1
+%endif
 
 ;%define LINCOM 1
 %include "main.mac"		; main library
@@ -41,21 +51,23 @@ _open:
 	taint	ecx
 	%define FD STDIN
 %else
-	set	sc_arg2, O_RDWR
+	set	sc_arg2, O_WRONLY
 	set	sc_arg3, PROT_READ|PROT_WRITE
 
 	push	'/fb0'
 	ELF_PHDR 1
 	push	'/dev'
-	open	esp, O_RDWR
+	open	esp, O_WRONLY
 	ychg	sc_arg5, sc_ret
 	shl	ecx, 24
 	%define FD x
 %endif
 _mmap:
-edi :=	mmap	x, x, PROT_READ|PROT_WRITE, MAP_SHARED, FD, 0
+edi :=	mmap	x, x, PROT_WRITE, MAP_SHARED, FD, 0
 
-%if GREEN
+%if SMALL
+	ELF_PHDR 1, 0x2d
+%elif GREEN
 	ELF_PHDR 1, 0xd
 %else
 	ELF_PHDR 1
@@ -65,9 +77,14 @@ rdump
 _write:
 set	ecx, sc_arg2			; nop
 
+%if SMALL
+	rep	stosd
+%else
 .loop:
 	dec	eax
+	;rdtsc
 	stosd
 jmp	.loop
+%endif
 
 %include "regdump2.mac"
